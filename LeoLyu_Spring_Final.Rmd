@@ -1,0 +1,515 @@
+---
+title: "Analysis on Factors Affecting Job Salary in Technology"
+author: "Leo Lyu"
+date: "May 10, 2026"
+fontsize: 8pt
+geometry: margin=0.5in
+output:
+  pdf_document: 
+    latex_engine: xelatex
+header-includes:
+  - \usepackage[singlelinecheck=false]{caption}
+---
+
+```{r, include=FALSE}
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize", paste0("\\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+})
+knitr::opts_chunk$set(error = FALSE)
+```
+
+
+
+```{r include=FALSE}
+
+###
+# Codechunk 1
+###
+
+# Setup
+library(ggplot2)
+library(aplpack)
+
+setwd("/Users/leo/Documents/Docs/Lville2526/CBS/Spring Project")
+df <- read.csv("data.csv")
+
+# Data Processing
+
+df$remote_work <- trimws(tolower(df$remote_work))
+map <- c("no" = 0, "yes" = 1, "hybrid" = 2)
+df$remote_work <- as.numeric(map[df$remote_work])
+
+df$company_size <- trimws(tolower(df$company_size))
+map <- c("small" = 0, "medium" = 1, "large" = 2)
+df$company_size <- as.numeric(map[df$company_size])
+
+
+df$education_level <- trimws(tolower(df$education_level))
+map <- c("high school" = 0, "diploma" = 1, "bachelor" = 2, "master" = 3, "phd" = 4)
+df$education_level <- as.numeric(map[df$education_level])
+
+```
+
+```{r include=FALSE}
+# Prelim Exploration
+
+print.data.frame(head(df))
+
+```
+
+
+## Abstract
+
+In the tech sector, it is often hard to understand what causes someone to succeed in finding roles or securing promotions within the same company. Moreover, factors such as remote work that have been normalized post-COVID still have disputed affects on job salary, with up to 57% of workers in computer systems design and related services industries being remote workers in 2022^[Pabilonia, Sabrina Wulff, and Jill Janocha Redmond. “The Rise in Remote Work Since the Pandemic and Its Impact on Productivity.” Beyond the Numbers, U.S. Bureau of Labor Statistics, 30 Oct. 2024, www.bls.gov/opub/btn/volume-13/remote-work-productivity.htm. Accessed 18 May 2026.]. This study examines the factors that influence the salary of individuals in the technology sector. Using a large scale data set with information on individuals' years of experience, education level, and other key characterisitics, the analysis aims to explore how each variable is related to the job salary of the individual, and to identify which factors most meaningfully affect an individual's job salary, as well as whether specific characteristics such as remote work status can be used to consistently predict the job salary of an individual.
+
+## Background
+
+This data set is made up of data from 250,000 individuals working in the technology sector. The variables this study will focus on are salary, years of experience, education level, skills count, and remote work status. This data set has been downloaded from kaggle^[Nalisha. Job Salary Prediction Dataset. Kaggle, 15 Mar. 2026, www.kaggle.com/datasets/nalisha/job-salary-prediction-dataset. Accessed 18 May 2026.], the collection method of this data is unknown, but there were no empty data points that required processing. This draws concern to the authenticity of the dataset because of the perfection despite the large number of rows, and could also potentially suggest that the preprocessing has already been completed. This could prevent some analysis into the responses from being conducted. The following sections for each of the variables of interest will clarify if any processing has been done to the data set with respect to each variable. With 250,000 individuals in this sample, all analysis will satisfy the 10% rule, with an estimated 9.9 million workers in the technology workforce in 2024^[Computing Technology Industry Association (CompTIA). State of the Tech Workforce: Cyberstates 2024. CompTIA, Mar. 2024, Cyberstates.org.].
+
+### Salary
+
+```{r, comment="", echo=FALSE}
+
+###
+# Codechunk 2
+# Claude: "create a 5 number summary table of df$salary"
+###
+
+library(ggplot2)
+library(patchwork)
+library(scales)
+library(knitr)
+
+salary_summary <- data.frame(
+  Minimum = scales::dollar(unname(min(df$salary))),
+  Q1      = scales::dollar(unname(quantile(df$salary, 0.25))),
+  Median  = scales::dollar(unname(median(df$salary))),
+  Q3      = scales::dollar(unname(quantile(df$salary, 0.75))),
+  Maximum = scales::dollar(unname(max(df$salary)))
+)
+
+library(kableExtra)
+
+knitr::kable(salary_summary, align = "c", caption = "Salary Distribution") |>
+  kable_styling(
+    bootstrap_options = c("striped", "bordered", "hover"),
+    full_width        = FALSE,
+    position          = "left"
+  )
+
+```
+Salary is the primary variable of interest in this study, and more specifically the outcome variable. An understanding of salary is key to understanding the underlying factors that drive career and personal growth in the technology sector.
+
+At a median salary of $143,453, the median salary within this dataset is significantly higher than the national median salary of $43,222 as of 2022^[Social Security Administration. “Cost-of-Living Adjustment (COLA) Information: The Rise in Remote Work Since the Pandemic and Its Impact on Productivity.” Beyond the Numbers, U.S. Bureau of Labor Statistics, 30 Oct. 2024, www.bls.gov/opub/btn/volume-13/remote-work-productivity.htm. Accessed 18 May 2026.], according to the Social Security Administration. Although the salary variable ranges from $32,867 to $333,046 with a range of $300,179, the low inter-quartile range of $26,039 suggests a strong concentration around the median salary values.
+
+### Years of Experience
+
+In career progression in many industries, including the technology sector, seniority and experience is often seen as a major factor in the determination of salaries. According to Indeed, those who have been at a company for longer often have higher salaries, or are even guaranteed a specific amount of compensation^[Hutchens, Robert M. “Seniority, Wages and Productivity: A Turbulent Decade.” Journal of Economic Perspectives, vol. 3, no. 4, 1989, pp. 49–64, doi:10.1257/jep.3.4.49.].
+
+```{r fig.height=2.5, fig.width=3, echo=FALSE}
+
+###
+# Codechunk 2
+# Claude: "create a 5 number summary table of df$experience_years"
+###
+
+experience_summary <- data.frame(
+  Minimum = unname(min(df$experience_years, na.rm = TRUE)),
+  Q1      = unname(quantile(df$experience_years, 0.25, na.rm = TRUE)),
+  Median  = unname(median(df$experience_years, na.rm = TRUE)),
+  Q3      = unname(quantile(df$experience_years, 0.75, na.rm = TRUE)),
+  Maximum = unname(max(df$experience_years, na.rm = TRUE))
+)
+
+library(kableExtra)
+
+knitr::kable(experience_summary, align = "c", caption = "Experience Years Distribution") |>
+  kable_styling(
+    bootstrap_options = c("striped", "bordered", "hover"),
+    full_width        = FALSE,
+    position          = "left"
+  )
+
+```
+According to the 5 number summary, it appears that the distribution of the number of experience in years is approximately uniform. This suggests that this data set is representative of people with all amounts of experiences in the industry, and those with any amount of experience has a roughly equal representation. The minimum value is 0 years of experience, while the maximum is 20 years. The relative difference between the minimum and maximum values is greater than that of many other variables.
+
+### Education Level
+
+According to the U.S Bureau of Labor Statistics, higher education directly correlates to higher salaries generally within the United States^[Torpey, Elka. “Learn More, Earn More: Education Leads to Higher Wages, Lower Unemployment.” Career Outlook, U.S. Bureau of Labor Statistics, 10 May 2020, www.bls.gov/careeroutlook/2020/data-on-display/education-pays.htm. Accessed 18 May 2026.]. This is a key reason many pursue higher levels of education.
+
+In this data set, education level is a categorical value with possible values being High School, Diploma, Bachelor, Master, and PhD. For the purposes of this analysis, these values have been mapped to 0-4 in the order previously stated, based on the respective depths of the education credentials.
+
+```{r fig.height=2.5, fig.width=3, echo=FALSE}
+
+###
+# Codechunk 3
+# Claude: create a bar chart comparing the amount of people in each education level
+###
+
+education_counts <- data.frame(
+  level = c("High School", "Diploma", "Bachelor", "Master", "PhD"),
+  count = c(
+    sum(df$education_level == 0, na.rm = TRUE),
+    sum(df$education_level == 1, na.rm = TRUE),
+    sum(df$education_level == 2, na.rm = TRUE),
+    sum(df$education_level == 3, na.rm = TRUE),
+    sum(df$education_level == 4, na.rm = TRUE)
+  )
+)
+
+library(ggplot2)
+
+ggplot(education_counts, aes(x = level, y = count)) +
+  geom_col(fill = "gray60", color = NA) +
+  labs(
+    title = "Education Level Distribution",
+    x = "Education Level",
+    y = "Count"
+  ) +
+  theme_minimal(base_size = 8, base_family = "serif") +
+  theme(
+    plot.title = element_text(hjust = 0, family = "serif", margin = margin(b = 6)),
+    axis.text.x = element_text(size = 7, family = "serif"),
+    axis.text.y = element_text(size = 7, family = "serif"),
+    axis.title.x = element_text(size = 8, family = "serif", margin = margin(t = 8)),
+    axis.title.y = element_text(size = 8, family = "serif", margin = margin(r = 8)),
+    plot.margin = margin(10, 10, 10, 0)
+  )
+```
+
+With slight variations, the distribution for education levels is approximately uniform. Individuals with all different levels of education are equally represented in this data set.
+
+### Number of Skills
+
+Similar to education, the number of skills represents an individual's proficiency in their line of work, and more importantly the value they are able to provide. Skill count is often thought to positively correlate with salary^[Vivona, Raffaele, Mehmet Akif Demircioglu, and David B. Audretsch. “What Is the Price of a Skill? The Value of Complementarity.” Research Policy, vol. 53, no. 1, 2024, article 104898, https://doi.org/10.1016/j.respol.2023.104898.].
+
+```{r fig.height=2.5, fig.width=3, echo=FALSE}
+
+###
+# Codechunk 4
+# Claude: "make the same 5 number summary table for number of skills, df$skills_count"
+###
+
+skills_summary <- data.frame(
+  Minimum = unname(min(df$skills_count, na.rm = TRUE)),
+  Q1      = unname(quantile(df$skills_count, 0.25, na.rm = TRUE)),
+  Median  = unname(median(df$skills_count, na.rm = TRUE)),
+  Q3      = unname(quantile(df$skills_count, 0.75, na.rm = TRUE)),
+  Maximum = unname(max(df$skills_count, na.rm = TRUE))
+)
+
+library(kableExtra)
+
+knitr::kable(skills_summary, align = "c", caption = "Skills Count Distribution") |>
+  kable_styling(
+    bootstrap_options = c("striped", "bordered", "hover"),
+    full_width        = FALSE,
+    position          = "left"
+  )
+
+```
+
+The distribution for skill count is approximately uniform. However, the relative difference between the minimum and maximum values of the skill count is very large compared to many other variables. In this data set, the maximum value of 19 skills is 19 times greater than the minimum value of 1 skill.
+
+### Remote Work
+
+As previously mentioned, remote work has become much increasingly common post COVID, the popularity remaining high amongst workers, with sources citing reasons such as "better health, better work-life fit, and lower levels of stress"^[Bartik, Alexander W., Edward L. Glaeser, Michael Luca, and Christopher T. Stanton. The Rise of Remote Work: Evidence on Productivity and Worker Preferences. Harvard Business School Working Paper No. 20‑138, June 2020, www.hbs.edu/ris/Publication%20Files/20-138_eca954c7-dde8-4154-8d7b-5688fd5caf94.pdf. Accessed 18 May 2026.].
+
+In this data set, there are 3 possible values for the categorical variable of the status of remote work for an individual: fully remote, hybrid, or not remote.
+
+\vspace{5mm}
+
+```{r fig.height=2.5, fig.width=3, echo=FALSE}
+
+# create a table comparing the amount of people in each category of remote work
+
+remote_summary <- data.frame(
+  `In-Person` = sum(df$remote_work == 0, na.rm = TRUE),
+  Hybrid      = sum(df$remote_work == 1, na.rm = TRUE),
+  Remote      = sum(df$remote_work == 2, na.rm = TRUE)
+)
+
+library(kableExtra)
+
+knitr::kable(remote_summary, align = "c", caption = "Remote Work Distribution") |>
+  kable_styling(
+    bootstrap_options = c("striped", "bordered", "hover"),
+    full_width        = FALSE,
+    position          = "left"
+  )
+
+```
+
+The number of workers in each status of remote work is also roughly similar, with slightly higher amounts of workers in either in-person jobs or fully remote jobs and slightly less in hybrid jobs. Still, fully in person jobs remain the most common despite the rise of populatrity in remote work.
+
+## Analysis
+
+### Relationship Between Years of Experience and Salary
+
+This study will create a linear regression model with the years of experience as the x-value and salary as the y-value. After that, a t-test will be conducted in order to determine whether the correlation is statistically significant.
+
+
+```{r include=FALSE}
+
+###
+# Codechunk 4
+# Claude: "create a linear regression model with df$experience_years as x and df$salary as y, then do a t test on the slope to see if the correlation is statistically significant at 95% confidence, I want all of this in r code"
+###
+
+model <- lm(salary ~ experience_years, data = df)
+
+# Regression output
+summary(model)
+
+reg_summary <- data.frame(
+  Intercept = as.character(round(coef(model)[1], 2)),
+  `Slope for Experience Years` = as.character(round(coef(model)[2], 2)),
+  `t value` = as.character(round(summary(model)$coefficients["experience_years", "t value"], 2)),
+  `p value` = as.character(format.pval(summary(model)$coefficients["experience_years", "Pr(>|t|)"], digits = 3, eps = 0.001)),
+  `R-squared` = as.character(round(summary(model)$r.squared, 3)),
+  check.names = FALSE
+)
+
+```
+
+```{r fig.height=2.5, fig.width=3, echo=FALSE}
+
+library(kableExtra)
+
+knitr::kable(reg_summary, align = "c", caption = "Regression Summary: Salary and Experience Years") |>
+  kableExtra::kable_styling(
+    bootstrap_options = c("striped", "bordered", "hover"),
+    full_width = FALSE,
+    position = "left"
+  )
+```
+
+```{r include=FALSE}
+
+# t-test for the slope coefficient
+slope_test <- summary(model)$coefficients["experience_years", ]
+
+print(slope_test)
+
+# Pull out the test statistic and p-value explicitly
+t_value <- slope_test["t value"]
+p_value <- slope_test["Pr(>|t|)"]
+
+print(t_value)
+print(p_value)
+
+# 95% confidence interval for the slope
+print(confint(model, level = 0.99))
+
+```
+
+According the the linear regression model, the y-intercept at x=0 years of experience is $118692, and for each year of experience the model predicts an increase in salary of around $2701. A t-test will be conducted to verify the statistical significance of the slope value. Since the n value of 250,000 is greater than 30, the distribution is approximately normal according to the central limit theorem (CLT). The statistic of interest is ${\beta}_1$, how much the salary is predicted to increase with each extra year of experience, and the hypothesis' are as shown.
+
+$H_0$: ${\beta}_1$=0
+
+$H_\alpha$: ${\beta}_1\neq0$
+
+The slope has a t value of 243.4, and a p value of less than 0.00<0.01. Therefore, $H_0$ is rejected, and ${\beta}_1\neq0$, it can be concluded that we are 99% confident that the slope of the linear regression model is not 0, which means that for each extra year of experience, we are 99% confident that there is a meaningful increase in salary. Therefore, we can conclude that there is a positive correlation between years of experience and salary.
+
+```{r fig.height=2.5, fig.width=3, echo=FALSE}
+
+# create a linear regression residual chart from the previous linear regression model
+
+model <- lm(salary ~ experience_years, data = df)
+
+par(
+  mar = c(4, 4, 2, 1),
+  cex = 0.8,
+  cex.axis = 0.75,
+  cex.lab = 0.85,
+  cex.main = 0.95
+)
+
+plot(
+  df$experience_years,
+  resid(model),
+  pch = 16,
+  col = rgb(0, 0, 0, 0.08),
+  xlab = "Experience Years",
+  ylab = "Residuals",
+  main = "Residuals vs Experience Years",
+  cex = 0.4
+)
+
+abline(h = 0, col = "black", lwd = 2)
+grid(col = "gray85", lty = 1)
+```
+
+Looking at the residual chart, there are no other significant patterns within the residual, therefore the conclusions made by the previous regression analysis are statistically valid. However, the variance of the salary does appear to increase with years of experience, suggesting a higher amount of possibilities both upwards and downwards with an increased amount of time in the workforce.
+
+However, the $R^2$ value of the regression model is only 0.192, meaning less that 20% of the variation can be explained by the correlation between salary and years of experience. Despite being very confident of the correlation, the correlation is not very strong between salary and years of experience.
+
+### The Effect of Remote Work on Salary
+
+This part of the study will focus on work that is fully remote and work that is fully in-person. The individuals in these two categories will be split into two groups, and the means of those two groups will be calculated to conduct a 2 sample t-test to determine whether there is a significant difference between the salary of the two groups. The number of individuals in fully in-person work is 83621, and the number of individuals in fuly remote work is 83476. Since both are >30, the distributions are approximately normal according to the central limit theorem Both are also mutually exclusive and independent, therefore the conditions for inference are met.
+
+This study will define $\mu_1$ as the population mean salary for those who work fully in-person, and $\mu_2$ as the sample mean salary for those who work fully remotely. The hypothesis' will be as stated below:
+
+$H_0$: $\mu_1$ = $\mu_2$
+
+$H_\alpha$: $\mu_1 \neq \mu_2$
+
+```{r fig.height=2.5, fig.width=10, echo=FALSE}
+
+# create a 2 sample t test for the groups of people with fully remote and fully in person jobs, make a table that shows the results
+
+in_person_salary <- df$salary[df$remote_work == 0]
+remote_salary    <- df$salary[df$remote_work == 2]
+
+t_test_result <- t.test(in_person_salary, remote_salary, var.equal = FALSE)
+
+t_test_table <- data.frame(
+  `t value` = round(unname(t_test_result$statistic), 2),
+  `p value` = format.pval(unname(t_test_result$p.value), digits = 3, eps = 0.001),
+  check.names = FALSE
+)
+
+knitr::kable(
+  t_test_table,
+  align = "c",
+  caption = "Two-Sample t-Test: In-Person vs Fully Remote Salary",
+  booktabs = TRUE
+) |>
+  kableExtra::kable_styling(
+    latex_options = c("hold_position"),
+    position = "left",
+    full_width = FALSE
+  )
+```
+
+Since p=0.836>0.05, we fail to reject $H_0$ and $\mu_1$ = $\mu_2$. Therefore, there is not enough evidence at the 95% confidence level to suggest that the salary for individuals working in fully remote jobs is different from that of individuals working in in-person jobs.
+
+### The Effect of Number of Skills on Salary
+
+```{r fig.height=3, fig.width=3, echo=FALSE, message=FALSE}
+
+# create a linear regression results table with between df$salary vs df$skills_count
+
+library(broom)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+library(broom)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+# Fit the model
+model <- lm(salary ~ skills_count, data = df)
+
+# Tidy results — drop conf.int columns
+model_tidy <- tidy(model) |>
+  select(term, estimate, std.error, statistic, p.value)
+
+# Rename columns for display
+names(model_tidy) <- c("Term", "Estimate", "Std. Error", "t-Statistic", "p-Value")
+
+# Format p-values
+model_tidy$`p-Value` <- format.pval(model_tidy$`p-Value`, digits = 3, eps = 0.001)
+
+# Render table
+knitr::kable(model_tidy, digits = 3, align = "lrrrr",
+             format   = "latex",
+             booktabs = TRUE,
+             caption  = "Linear Regression: Salary ~ Skills Count") |>
+  kable_styling(
+    latex_options = c("striped", "hold_position"),
+    position      = "left",
+    full_width    = FALSE
+  ) |>
+  row_spec(0, bold = TRUE) |>
+  add_footnote(
+    label    = paste0("R² = ", round(glance(model)$r.squared, 3)),
+    notation = "none"
+  )
+
+```
+
+```{r fig.height=3, fig.width=3, echo=FALSE}
+
+# Create a residuals graph with the previous regression data
+
+model <- lm(salary ~ skills_count, data = df)
+
+par(
+  mar = c(4, 4, 2, 1),
+  cex = 0.8,
+  cex.axis = 0.75,
+  cex.lab = 0.85,
+  cex.main = 0.95
+)
+
+plot(
+  df$skills_count,
+  resid(model),
+  pch = 16,
+  col = rgb(0, 0, 0, 0.08),
+  xlab = "Skills Count",
+  ylab = "Residuals",
+  main = "Residuals vs Skills Count",
+  cex = 0.4
+)
+
+abline(h = 0, col = "black", lwd = 2)
+grid(col = "gray85", lty = 1)
+
+```
+
+There are no other patterns within the residuals of the linear regression, therefore the conditions for inference are met. The n value of 250,000>30, the distribution is approximately normal according to the central limit theorem.
+
+From this linear regression model created for the relationship between the number of skills and an individual's salary, a t-test will be conducted on the slope to verify the statistical significance of the correlation. Let $\hat{\beta}_1$ be the slope of the regression model. The hypothesis' are as below:
+
+$H_0$: ${\beta}_1$=0
+
+$H_\alpha$: ${\beta}_1\neq0$
+
+Because p is less than 0.001, which means it is also less than 0.01, $H_0$ is successfully reject and ${\beta}_1\neq0$. Therefore, it can be concluded that at the 99% confidence level, there is enough convicing evidence to suggest the correlation is statistically significant.
+
+However, this extremely high level of confidence does not necesserily indicate a high level of correlation. In fact, the $R^2$ value of 0.016 means that only around 1.6% of the variation can be explained by the difference in an individual's number of skills. Therefore, the number of skills is an extremely weak factor that affects the salary of an individual.
+
+## Conclusion
+
+According to the analysis conducted on this data set, it can be concluded that the number of years of experience has the greatest impact on an individual's salary within the technology sector. However, it is still only able to explain less than 20% of the variation. On the other hand, remote work status and the number of skills an individual has were determined to be ineffective factors in deciding an individual's salary. Even though there we can be very confident of the correlation between an individual's number of skills and their salary, the relationship was too weak to meaningfully afffect an individual's salary.
+
+For the data set itself, the high number of uniformity across multiple variables draw question to the validity of the sampling procedure or even the validity of the data collected. For example, approximately 20% of the individuals in the study hold a PhD, while only 2% of the U.S. population hold a PhD^[“67 Doctorate Degree Statistics and Facts.” National University, 9 Oct. 2023, www.nu.edu/blog/doctorate-degree-statistics/. Accessed 18 May 2026.].
+
+```{r fig.height=3, fig.width=3, echo=FALSE, message=FALSE}
+
+# Claude: create a comparative bar chart with df$education_level as x and df$skills_count as y
+
+library(ggplot2)
+
+ggplot(df, aes(x = factor(education_level,
+               labels = c("High School", "Diploma", "Bachelor", "Master", "PhD")),
+               y = skills_count)) +
+  geom_boxplot(fill = "gray80", color = "black", outlier.size = 0.5) +
+  labs(
+    title = "Skills Count by Education Level",
+    x = "Education Level",
+    y = "Number of Skills"
+  ) +
+  theme_minimal(base_size = 6, base_family = "serif") +
+  theme(
+    plot.title = element_text(hjust = 0, size = 7, margin = margin(b = 6)),
+    axis.title.x = element_text(size = 6, margin = margin(t = 10)),
+    axis.title.y = element_text(size = 6, margin = margin(r = 10)),
+    axis.text = element_text(size = 5.5),
+    plot.margin = margin(10, 10, 10, 0)
+  )
+
+```
+
+Looking at the boxplots showing the relationship of and individual's level of education, the boxplots are essentially identical. Therefore, the education level and number of skills of an individual are supposedly identical. Though this could be true in the data sample, it is unlikely that this could happen from a real world sample, where education is supposed to increase the amount of skills held by an individual^[Melissinos, Errikos, and Robert A. Moffitt. Multidimensional Skills and the Returns to Schooling. U.S. Census Bureau, 23 Sept. 2019, www.census.gov/library/working-papers/2019/adrm/Multidimensional-Skills-and-School.html. Accessed 18 May 2026.]. In conclusion, this extremely high level of independence is likely explained by a randomly computer generated dataset to ensure independence.
+
+## Appendix 
+
+*Note: All AI code prompts are cited at the beginning of the r code blocks that contain the graph code.*
+
